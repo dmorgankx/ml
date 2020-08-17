@@ -14,8 +14,10 @@
 // @param clt  {long[]}    List of clusters produced by .ml.clust algos
 // @return     {float}     Davies Bouldin index of clt
 clust.daviesbouldin:{[data;clt]
-  s:avg each clust.i.dists[;`edist;;::]'[p;a:avg@''p:{x[;y]}[data]each group clt];
-  (sum{[s;a;x;y]max(s[y]+s e)%'clust.i.dists[flip a e:x _y;`edist;a y;::]}[s;a;t]each t:til n)%n:count a
+  a:avg@''p:{x[;y]}[data]each group clt;
+  s:avg each clust.i.dists[;`edist;;::]'[p;a];
+  db:{[s;a;x;y]max(s[y]+s e)%'clust.i.dists[flip a e:x _y;`edist;a y;::]};
+  (sum db[s;a;t]each t:til n)%n:count a
   }
 
 // @kind function
@@ -40,7 +42,8 @@ clust.dunn:{[data;df;clt]
 // @param isavg {bool}      List of scores or the average score (1/0b)
 // @return      {float}     Silhouette score of clt
 clust.silhouette:{[data;df;clt;isavg]
-  $[isavg;avg;]clust.i.sil[data;df;group clt;1%(count each group clt)-1]'[clt;flip data]
+  k:1%(count each group clt)-1;
+  $[isavg;avg;]clust.i.sil[data;df;group clt;k]'[clt;flip data]
   }
 
 // Supervised Learning
@@ -48,15 +51,18 @@ clust.silhouette:{[data;df;clt;isavg]
 // @kind function
 // @category clust
 // @fileoverview Homogeneity Score
-// @param x = predicted cluster labels
-/* y = true cluster labels
+// @param pred {long[]} Predicted cluster labels
+// @param true {long[]} True cluster labels
+// @return     {float}  Homogeneity score for true
 clust.homogeneity:{[pred;true]
- if[count[pred]<>n:count true;'`$"distinct lengths - lenght of lists has to be the same"];
- if[not e:clust.i.entropy true;:1.];
- cm:value confmat[pred;true];
- nm:(*\:/:).((count each group@)each(pred;true))@\:til count cm;
- mi:(sum/)0^cm*.[-;log(n*cm;nm)]%n;
- mi%e}
+  if[count[pred]<>n:count true;
+    '`$"distinct lengths - lenght of lists has to be the same"];
+  if[not e:clust.i.entropy true;:1.];
+  cm:value confmat[pred;true];
+  nm:(*\:/:).((count each group@)each(pred;true))@\:til count cm;
+  mi:(sum/)0^cm*.[-;log(n*cm;nm)]%n;
+  mi%e
+  }
 
 // Optimum number of clusters
 
@@ -69,7 +75,8 @@ clust.homogeneity:{[pred;true]
 // @return     {float[]}   Score for each k value - plot to find elbow
 clust.elbow:{[data;df;k]
   {[data;df;k]
-    sum raze clust.i.dists[;df;;::]'[p;a:avg@''p:{x[;y]}[data]each group clust.kmeans[data;df;k;100;1b]]
+    clt:clust.kmeans[data;df;k;100;1b];
+    sum raze clust.i.dists[;df;;::]'[p;a:avg@''p:{x[;y]}[data]each group clt]
     }[data;df]each 2+til k-1
   }
 
