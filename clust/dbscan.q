@@ -4,21 +4,88 @@
 
 // @kind function
 // @category clust
-// @fileoverview DBSCAN algorithm
+// @fileoverview Fit DBSCAN algorithm to data
 // @param data   {float[][]} Points in `value flip` format
 // @param df     {fn}        Distance function
 // @param minpts {long}      Minimum number of points in epsilon radius
 // @param eps    {float}     Epsilon radius to search
 // @return       {long[]}    List of clusters
-clust.dbscan:{[data;df;minpts;eps]
- // check distance function
- if[not df in key clust.i.dd;clust.i.err.dd[]];
- // calculate distances and find all points which are not outliers
- nbhood:clust.i.nbhood["f"$data;df;eps]each til count data 0;
- // update outlier cluster to null
- t:update cluster:0N,corepoint:minpts<=1+count each nbhood from([]nbhood);
- // find cluster for remaining points and return list of clusters
- exec cluster from {[t]any t`corepoint}clust.i.dbalgo/t}
+clust.dbscan.fit:{[data;df;minpts;eps]
+  // check distance function
+  if[not df in key clust.i.dd;clust.i.err.dd[]];
+  // create neighbourhood table
+  t:clust.i.nbhoodtab[data;df;minpts;eps;til count data 0];
+  // find cluster for remaining points and return list of clusters
+  clt:-1^exec cluster from t:{[t]any t`corepoint}clust.i.dbalgo/t;
+  // return config dict
+  `data`df`minpts`eps`clt`t!(data;df;minpts;eps;clt;t)
+  }
+
+// @kind function
+// @category clust
+// @fileoverview Predict clusters using DBSCAN config
+// @param data {float[][]} Points in `value flip` format
+// @param cfg  {dict}      `data`df`minpts`eps`clt returned from DBSCAN 
+//   clustered training data
+// @return     {long[]}    List of predicted clusters
+clust.dbscan.predict:{[data;cfg]
+  // predict new clusters
+  -1^exec cluster from clust.i.dbscanpredict[data;cfg]
+  }
+
+// @kind function
+// @category clust
+// @fileoverview Update DBSCAN config including new data points
+// @param data {float[][]} Points in `value flip` format
+// @param cfg  {dict}      `data`df`minpts`eps`clt`nbh returned from DBSCAN 
+//   clustered training data
+// @return     {dict}      Updated model config
+clust.dbscan.update:{[data;cfg]
+  // predict new clusters
+  rtst:clust.i.dbscanpredict[data;cfg];
+  rtrn:update corepoint:1b from cfg[`t]where cluster<>0N;
+  // include test points in training neighbourhood
+  rtrn:{[trn;tst;idx]
+    update nbhood:{x,'y}[nbhood;idx]from trn where i in tst`nbhood
+    }/[rtrn;rtst;count[rtrn]+til count rtst];
+  // update clusters
+  t:{[t]any t`corepoint}.ml.clust.i.dbalgo/rtrn,rtst;
+  // start clusters from 0
+  t:update{(d!til count d:distinct x)x}cluster from t where cluster<>0N;
+  // return updated config
+  cfg,`data`t`clt!(cfg[`data],'data;t;-1^exec cluster from t)
+  }
+
+// @kind function
+// @category private
+// @fileoverview Predict clusters using DBSCAN config
+// @param data {float[][]} Points in `value flip` format
+// @param cfg  {dict}      `data`df`minpts`eps`clt returned from DBSCAN 
+//   clustered training data
+// @return     {long[]}    Cluster table
+clust.i.dbscanpredict:{[data;cfg]
+  idx:count[cfg[`data]0]+til count data 0;
+  // create neighbourhood table
+  t:clust.i.nbhoodtab[cfg[`data],'data;;;;idx]. cfg`df`minpts`eps;
+  // find which existing clusters new data belongs to
+  update cluster:{x[`clt]first y}[cfg]each nbhood from t where corepoint
+  }
+
+// @kind function
+// @category private
+// @fileoverview Create neighbourhood table for points at indices provided
+// @param data   {float[][]} Points in `value flip` format
+// @param df     {fn}        Distance function
+// @param minpts {long}      Minimum number of points in epsilon radius
+// @param eps    {float}     Epsilon radius to search
+// @param idx    {long[]}    Data indices to find neighbourhood for
+// @return       {table}     Neighbourhood table with `nbhood`cluster`corepoint
+clust.i.nbhoodtab:{[data;df;minpts;eps;idx]
+  // calculate distances and find all points which are not outliers
+  nbhood:clust.i.nbhood[data;df;eps]each idx;
+  // update outlier cluster to null
+  update cluster:0N,corepoint:minpts<=1+count each nbhood from([]nbhood)
+  }
 
 // @kind function
 // @category private
